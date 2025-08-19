@@ -1,0 +1,1 @@
+document.getElementById('board').innerHTML='<p>Échiquier Ghibli chargé</p>';

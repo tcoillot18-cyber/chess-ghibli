@@ -1,0 +1,1 @@
+body{background:#0a0f26;color:#fff;font-family:sans-serif;}.board{display:grid;grid-template-columns:repeat(8,50px);grid-template-rows:repeat(8,50px);}

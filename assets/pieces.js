@@ -1,0 +1,1 @@
+window.pieceSVG=function(c){return '<div>'+c+'</div>';};
