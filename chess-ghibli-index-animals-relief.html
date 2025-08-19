@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+    <title>Chess Ghibli — Forêt Nuit (Animaux + Relief)</title>
+    <style>
+      :root {
+        --sq: calc(min(11.5vmin, 12.5vw, 7.8vh));
+        --gap: 2px;
+        --rad: 10px;
+
+        /* Palette "Terre / Argile" */
+        --light-clay: #b8835e;  /* clair argile */
+        --light-clay-hi: #d8a37e;
+        --light-clay-lo: #8f5f41;
+
+        --dark-umber: #5a3a2a;  /* sombre terre */
+        --dark-umber-hi: #724c38;
+        --dark-umber-lo: #3b261c;
+
+        /* Métal doré pour sélections */
+        --gold: #d1a325;
+      }
+
+      * { box-sizing: border-box }
+      html, body { height: 100% }
+      body {
+        margin: 0;
+        font-family: ui-rounded, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background:
+          radial-gradient(110% 150% at 50% 0%, #0b1230 0%, #0a0f26 40%, #08102a 70%, #060c21 100%);
+        color: #f3f4f6;
+        overflow: hidden;
+      }
+
+      .app { position: relative; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; height: 100%;
+             align-items: center; justify-items: center; padding: clamp(10px, 2vmin, 18px) }
+      .header { position:relative; z-index:3; display:flex; align-items:center; gap:10px; padding:8px 12px;
+                background: rgba(10,17,40,.45); border:1px solid rgba(255,255,255,.06);
+                border-radius:14px; backdrop-filter: blur(6px); max-width: 96vw }
+      .brand { font-weight:700; letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+      .controls { display:flex; gap:8px; z-index:3; flex-wrap:wrap }
+      button { cursor:pointer; border:none; padding:10px 12px; border-radius:12px;
+               background: rgba(255,255,255,.12); color:#fff; font-weight:600; letter-spacing:.3px }
+      button:hover { background: rgba(255,255,255,.2) }
+
+      .board-wrap {
+        position:relative; z-index:2; padding: 14px; border-radius: 22px;
+        background:
+          radial-gradient(120% 140% at 50% 0%, rgba(90,120,100,.22), transparent 70%),
+          linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+        border: 1px solid rgba(255,255,255,.06);
+        box-shadow: 0 40px 80px rgba(0,0,0,.35), 0 8px 18px rgba(0,0,0,.35) inset;
+      }
+
+      .board {
+        display: grid;
+        grid-template-columns: repeat(8, var(--sq));
+        grid-template-rows: repeat(8, var(--sq));
+        gap: var(--gap);
+        background: linear-gradient(135deg, rgba(0,0,0,.28), rgba(255,255,255,.06));
+        padding: var(--gap);
+        border-radius: calc(var(--rad) + 6px);
+        position: relative; overflow: hidden; touch-action: manipulation;
+      }
+      .board::after {
+        content: ""; position: absolute; inset: 0;
+        background-image: radial-gradient(rgba(0,0,0,.08) 1px, transparent 1px);
+        background-size: 7px 7px; mix-blend-mode: overlay; pointer-events: none;
+      }
+
+      /* Relief des cases : biseaux + reflets + ombres internes */
+      .square {
+        width: var(--sq); height: var(--sq); display: grid; place-items: center; position: relative;
+        border-radius: var(--rad);
+        overflow: hidden;
+        box-shadow:
+          inset 1px 1px 0 rgba(255,255,255,.12),
+          inset -2px -3px 0 rgba(0,0,0,.25),
+          0 1px 0 rgba(255,255,255,.06);
+      }
+      .square.light {
+        background:
+          linear-gradient(180deg, var(--light-clay-hi), var(--light-clay) 60%, var(--light-clay-lo));
+      }
+      .square.dark {
+        background:
+          linear-gradient(180deg, var(--dark-umber-hi), var(--dark-umber) 60%, var(--dark-umber-lo));
+      }
+      .square::before {
+        content:""; position:absolute; inset:0;
+        background:
+          radial-gradient(90% 120% at 30% 20%, rgba(255,255,255,.09), transparent 55%),
+          radial-gradient(120% 80% at 70% 80%, rgba(0,0,0,.16), transparent 55%);
+        mix-blend-mode: soft-light; pointer-events:none;
+      }
+
+      /* Indices et sélection */
+      .square .hint {
+        position:absolute; width:22%; height:22%; border-radius: 999px;
+        background: rgba(255,255,255,.82);
+        box-shadow: 0 0 0 6px rgba(255,255,255,.14) inset;
+      }
+      .square.selected {
+        outline: 3px solid rgba(209,163,37,.95);
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,.14), 0 0 0 1px rgba(0,0,0,.4);
+        z-index:2;
+      }
+
+      /* Pièces animales détaillées + relief (ombres et reflets) */
+      .piece {
+        width: 86%; height: 86%;
+        user-select: none; touch-action: manipulation;
+        filter: drop-shadow(0 2px 0 rgba(0,0,0,.25)) drop-shadow(0 8px 12px rgba(0,0,0,.18));
+      }
+
+      .sky { position: fixed; inset: 0; overflow: hidden; pointer-events: none }
+      .stars { position: absolute; width: 100%; height: 100% }
+      .star { position: absolute; width: 2px; height: 2px; background: #fff; border-radius: 999px;
+              opacity: .85; animation: twinkle 3.5s infinite ease-in-out }
+      @keyframes twinkle { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
+      .cloud { position: absolute; top: 10%; width: 40vw; height: 16vw;
+               background: radial-gradient(60% 80% at 50% 50%, rgba(255,255,255,.13), rgba(255,255,255,.03) 60%, transparent 70%);
+               filter: blur(10px); border-radius: 50%; animation: drift 140s linear infinite }
+      .cloud.c2 { top: 25%; width: 50vw; height: 18vw; animation-duration: 180s; animation-delay: -20s }
+      .cloud.c3 { top: 40%; width: 45vw; height: 15vw; animation-duration: 160s; animation-delay: -60s }
+      .cloud.c4 { top: 55%; width: 55vw; height: 20vw; animation-duration: 200s; animation-delay: -100s }
+      @keyframes drift { from { transform: translateX(55vw) } to { transform: translateX(-120vw) } }
+      .grass { position: fixed; left: 0; right: 0; bottom: -6vh; height: 16vh;
+               background: radial-gradient(80% 80% at 50% 0%, rgba(26,77,46,.55), rgba(26,77,46,.1) 60%, transparent 85%),
+                           linear-gradient(180deg, rgba(26,77,46,.65), rgba(6,20,16,0.0));
+               filter: blur(.6px); pointer-events: none; z-index: 1 }
+      .footer { position: relative; z-index: 3; opacity: .9; font-size: 12px; text-align: center; padding: 2px 8px }
+
+      @media (max-width: 380px), (max-height: 640px) {
+        :root { --sq: calc(min(10.4vmin, 12vw, 7.2vh)) }
+        .header { gap: 6px; padding: 6px 8px }
+        .brand { font-size: 14px }
+        button { padding: 8px 10px; font-size: 14px }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <span class="brand">♟️ Chess Ghibli — Forêt Nuit</span>
+        <div class="controls">
+          <button id="btnNew" aria-label="Rejouer">Rejouer</button>
+          <button id="btnFlip" aria-label="Inverser l'échiquier">Flip</button>
+        </div>
+      </header>
+      <main class="board-wrap">
+        <div id="board" class="board" aria-label="Échiquier"></div>
+      </main>
+      <div class="grass"></div>
+      <footer class="footer">DA : cases argile en relief + pièces animaux (roi chat, reine grenouille, fou hibou, cavalier renard, tour ours, pion souris)</footer>
+      <div class="sky" aria-hidden="true">
+        <div class="stars" id="stars"></div>
+        <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div><div class="cloud c4"></div>
+      </div>
+    </div>
+
+    <!-- Moteur lite offline -->
+    <script>
+      (function(w){
+        function idx(sq){ var f=sq.charCodeAt(0)-97, r=sq.charCodeAt(1)-49; return {f,r}; }
+        function inb(f,r){ return f>=0&&f<8&&r>=0&&r<8; }
+        function startBoard(){
+          var e=null,W='w',B='b';
+          var P=(c)=>({type:'p',color:c}), R=(c)=>({type:'r',color:c}), N=(c)=>({type:'n',color:c}), Bf=(c)=>({type:'b',color:c}), Q=(c)=>({type:'q',color:c}), K=(c)=>({type:'k',color:c});
+          return [
+            [R(W),N(W),Bf(W),Q(W),K(W),Bf(W),N(W),R(W)],
+            [P(W),P(W),P(W),P(W),P(W),P(W),P(W),P(W)],
+            [e,e,e,e,e,e,e,e],
+            [e,e,e,e,e,e,e,e],
+            [e,e,e,e,e,e,e,e],
+            [e,e,e,e,e,e,e,e],
+            [P(B),P(B),P(B),P(B),P(B),P(B),P(B),P(B)],
+            [R(B),N(B),Bf(B),Q(B),K(B),Bf(B),N(B),R(B)]
+          ];
+        }
+        function sqOf(f,r){ return String.fromCharCode(97+f)+String.fromCharCode(49+r); }
+        function pieceAt(b,sq){ var p=idx(sq); return b[7-p.r][p.f]; }
+        function setAt(b,sq,val){ var p=idx(sq); b[7-p.r][p.f]=val; }
+        function genMoves(b,turn,sq){
+          var p=pieceAt(b,sq); if(!p || p.color!==turn) return [];
+          var res=[], f=idx(sq).f, r=idx(sq).r, dr,df,nf,nr,t,target;
+          function add(to){ var tpiece=pieceAt(b,to); res.push({from:sq,to:to,captured:tpiece?tpiece.type:undefined,piece:p.type}); }
+          if(p.type==='p'){
+            var dir = (p.color==='w')?+1:-1;
+            var startRank = (p.color==='w')?1:6;
+            var nf=f, nr=r+dir, t=sqOf(nf,nr);
+            if(inb(nf,nr) && !pieceAt(b,t)){ res.push({from:sq,to:t,piece:p.type});
+              if(r===startRank){ nr=r+2*dir; t=sqOf(nf,nr); if(!pieceAt(b,t)) res.push({from:sq,to:t,piece:p.type}); }
+            }
+            for(df of [-1,1]){
+              nf=f+df; nr=r+dir;
+              if(inb(nf,nr)){ t=sqOf(nf,nr); target=pieceAt(b,t); if(target && target.color!==p.color) add(t); }
+            }
+          } else if(p.type==='n'){
+            var jumps=[[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]];
+            for(var k=0;k<jumps.length;k++){ nf=f+jumps[k][0]; nr=r+jumps[k][1];
+              if(!inb(nf,nr)) continue; t=sqOf(nf,nr); target=pieceAt(b,t);
+              if(!target || target.color!==p.color) add(t);
+            }
+          } else if(p.type==='k'){
+            for(df=-1;df<=1;df++){ for(dr=-1;dr<=1;dr++){
+              if(df===0 && dr===0) continue; nf=f+df; nr=r+dr;
+              if(!inb(nf,nr)) continue; t=sqOf(nf,nr); target=pieceAt(b,t);
+              if(!target || target.color!==p.color) add(t);
+            }}
+          } else {
+            var dirs=[];
+            if(p.type==='b'||p.type==='q') dirs.push([1,1],[1,-1],[-1,1],[-1,-1]);
+            if(p.type==='r'||p.type==='q') dirs.push([1,0],[-1,0],[0,1],[0,-1]);
+            for(var d=0;d<dirs.length;d++){
+              df=dirs[d][0]; dr=dirs[d][1]; nf=f+df; nr=r+dr;
+              while(inb(nf,nr)){
+                t=sqOf(nf,nr); target=pieceAt(b,t);
+                if(!target){ add(t); } else { if(target.color!==p.color) add(t); break; }
+                nf+=df; nr+=dr;
+              }
+            }
+          }
+          return res;
+        }
+        function Board(){
+          var b=startBoard(), turn='w';
+          return {
+            board: function(){ return b.map(row=>row.map(p=>p?{type:p.type,color:p.color}:null)); },
+            reset: function(){ b=startBoard(); turn='w'; },
+            turn: function(){ return turn; },
+            get: function(sq){ return pieceAt(b,sq); },
+            moves: function(opts){ var sq=opts && opts.square; if(!sq) return []; return genMoves(b,turn,sq).map(m=>({from:m.from,to:m.to,verbose:true})); },
+            move: function(m){
+              var legal = genMoves(b,turn,m.from).find(x=>x.to===m.to);
+              if(!legal) return null;
+              var P = pieceAt(b,m.from);
+              var to = m.to;
+              var r = idx(to).r;
+              if(P.type==='p' && ((P.color==='w' && r===7) || (P.color==='b' && r===0))){
+                setAt(b,m.from,null); setAt(b,to,{type:(m.promotion||'q'),color:P.color}); turn = (turn==='w')?'b':'w'; return {flags:'p'};
+              }
+              setAt(b,m.from,null); setAt(b,to,P); turn = (turn==='w')?'b':'w'; return {};
+            }
+          };
+        }
+        w.Chess = Board;
+      })(window);
+    </script>
+
+    <!-- Pièces animales détaillées -->
+    <script>
+      (function(){
+        const STROKE = '#1c120c';
+
+        function wrap(g){ return '<svg viewBox="0 0 100 100" class="piece" xmlns="http://www.w3.org/2000/svg">'+g+'</svg>'; }
+        function gloss(id){ return `<defs>
+            <linearGradient id="${id}-face" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(255,255,255,.55)"/>
+              <stop offset="35%" stop-color="rgba(255,255,255,.0)"/>
+              <stop offset="100%" stop-color="rgba(0,0,0,.18)"/>
+            </linearGradient>
+          </defs>`; }
+
+        window.pieceSVG = function(code){
+          if (!code) return "";
+          const side = code[0] === 'w' ? 'w' : 'b';
+          const type = code[1].toLowerCase();
+
+          // Pelage / peau : clair pour blancs, brun pour noirs
+          const FUR  = side==='w' ? '#f2dfc6' : '#6a4a35';
+          const FUR2 = side==='w' ? '#e6cdaa' : '#4e3727';
+          const EYE  = side==='w' ? '#1b120d' : '#f7ead2';
+          const PINK = side==='w' ? '#e7b9b9' : '#9a6b6b';
+          const GOLD = '#d1a325';
+          const GREEN = side==='w' ? '#7ab86b' : '#4f8f46';
+
+          // ROI = CHAT (couronne)
+          if (type==='k'){
+            const id='cat'+side+Math.random().toString(36).slice(2,6);
+            return wrap(`
+              ${gloss(id)}
+              <g stroke="${STROKE}" stroke-width="2">
+                <polygon points="38,16 50,8 62,16 70,10 72,26 28,26 30,10" fill="${GOLD}" />
+                <g>
+                  <ellipse cx="50" cy="58" rx="26" ry="22" fill="${FUR}"/>
+                  <path d="M34 48 L28 30 L42 40" fill="${FUR}"/>
+                  <path d="M66 48 L72 30 L58 40" fill="${FUR}"/>
+                  <polygon points="38,32 46,20 50,26 54,20 62,32" fill="${FUR2}" />
+                  <circle cx="42" cy="56" r="4" fill="${EYE}" />
+                  <circle cx="58" cy="56" r="4" fill="${EYE}" />
+                  <path d="M46 64 Q50 68 54 64" stroke="${EYE}" stroke-width="2" fill="none"/>
+                  <path d="M38 60 l-10 -4 M38 62 l-10 2 M38 64 l-10 6" stroke="${EYE}" stroke-width="1.6"/>
+                  <path d="M62 60 l10 -4 M62 62 l10 2 M62 64 l10 6" stroke="${EYE}" stroke-width="1.6"/>
+                  <ellipse cx="50" cy="52" rx="2.2" ry="1.4" fill="${PINK}"/>
+                </g>
+                <ellipse cx="50" cy="40" rx="26" ry="24" fill="url(#${id}-face)" />
+              </g>`);
+          }
+
+          // REINE = GRENOUILLE
+          if (type==='q'){
+            const id='frog'+side+Math.random().toString(36).slice(2,6);
+            return wrap(`
+              ${gloss(id)}
+              <g stroke="${STROKE}" stroke-width="2">
+                <polygon points="34,18 44,10 50,18 56,10 66,18 70,28 30,28" fill="${GOLD}" />
+                <g>
+                  <ellipse cx="50" cy="60" rx="26" ry="20" fill="${GREEN}"/>
+                  <ellipse cx="38" cy="46" rx="12" ry="10" fill="${GREEN}"/>
+                  <ellipse cx="62" cy="46" rx="12" ry="10" fill="${GREEN}"/>
+                  <circle cx="38" cy="44" r="4.5" fill="${EYE}"/>
+                  <circle cx="62" cy="44" r="4.5" fill="${EYE}"/>
+                  <path d="M40 66 Q50 72 60 66" stroke="${EYE}" stroke-width="2.2" fill="none"/>
+                </g>
+                <ellipse cx="50" cy="44" rx="26" ry="24" fill="url(#${id}-face)" />
+              </g>`);
+          }
+
+          // FOU = HIBOU
+          if (type==='b'){
+            const id='owl'+side+Math.random().toString(36).slice(2,6);
+            return wrap(`
+              ${gloss(id)}
+              <g stroke="${STROKE}" stroke-width="2">
+                <ellipse cx="50" cy="60" rx="20" ry="22" fill="${FUR}"/>
+                <path d="M32 42 Q50 26 68 42 L60 46 Q50 38 40 46 Z" fill="#b0895a"/>
+                <circle cx="42" cy="54" r="5" fill="${EYE}"/>
+                <circle cx="58" cy="54" r="5" fill="${EYE}"/>
+                <polygon points="50,60 46,56 54,56" fill="#d48c3c"/>
+                <ellipse cx="50" cy="40" rx="20" ry="16" fill="url(#${id}-face)"/>
+              </g>`);
+          }
+
+          // CAVALIER = RENARD
+          if (type==='n'){
+            const id='fox'+side+Math.random().toString(36).slice(2,6);
+            return wrap(`
+              ${gloss(id)}
+              <g stroke="${STROKE}" stroke-width="2">
+                <path d="M30 64 Q30 48 44 42 Q56 38 68 46 Q72 58 62 70 Q52 80 38 78 Q30 72 30 64 Z" fill="#d0732e"/>
+                <polygon points="44,36 50,26 56,36 50,40" fill="#f7c79f"/>
+                <polygon points="40,34 32,24 46,30" fill="#d0732e"/>
+                <polygon points="60,34 68,24 54,30" fill="#d0732e"/>
+                <circle cx="46" cy="52" r="3" fill="${EYE}"/>
+                <circle cx="54" cy="52" r="3" fill="${EYE}"/>
+                <polygon points="48,58 52,58 50,62" fill="${EYE}"/>
+                <ellipse cx="50" cy="44" rx="20" ry="14" fill="url(#${id}-face)"/>
+              </g>`);
+          }
+
+          // TOUR = OURS
+          if (type==='r'){
+            const id='bear'+side+Math.random().toString(36).slice(2,6);
+            return wrap(`
+              ${gloss(id)}
+              <g stroke="${STROKE}" stroke-width="2">
+                <rect x="38" y="52" width="24" height="26" rx="4" fill="#6a4a30"/>
+                <circle cx="50" cy="42" r="16" fill="${FUR}"/>
+                <circle cx="42" cy="36" r="5" fill="${FUR2}"/>
+                <circle cx="58" cy="36" r="5" fill="${FUR2}"/>
+                <circle cx="46" cy="44" r="3.2" fill="${EYE}"/>
+                <circle cx="54" cy="44" r="3.2" fill="${EYE}"/>
+                <rect x="36" y="78" width="28" height="6" rx="3" fill="#6a4a30"/>
+                <ellipse cx="50" cy="50" rx="6" ry="4" fill="#2d1b12"/>
+                <ellipse cx="50" cy="36" rx="20" ry="14" fill="url(#${id}-face)"/>
+              </g>`);
+          }
+
+          // PION = SOURIS
+          if (type==='p'){
+            const id='mouse'+side+Math.random().toString(36).slice(2,6);
+            return wrap(`
+              ${gloss(id)}
+              <g stroke="${STROKE}" stroke-width="2">
+                <ellipse cx="50" cy="58" rx="18" ry="18" fill="${FUR}"/>
+                <circle cx="42" cy="44" r="6" fill="${FUR2}"/>
+                <circle cx="58" cy="44" r="6" fill="${FUR2}"/>
+                <circle cx="46" cy="56" r="2.6" fill="${EYE}"/>
+                <circle cx="54" cy="56" r="2.6" fill="${EYE}"/>
+                <path d="M50 60 Q54 64 58 66" stroke="${EYE}" stroke-width="2" fill="none"/>
+                <ellipse cx="50" cy="46" rx="18" ry="12" fill="url(#${id}-face)"/>
+              </g>`);
+          }
+
+          return "";
+        };
+      })();
+    </script>
+
+    <!-- UI / rendu -->
+    <script>
+      (function(){
+        const files = ['a','b','c','d','e','f','g','h'];
+        const ranks = ['1','2','3','4','5','6','7','8'];
+        let orientation = 'white';
+        const game = new window.Chess();
+
+        const boardEl = document.getElementById('board');
+        const btnNew = document.getElementById('btnNew');
+        const btnFlip = document.getElementById('btnFlip');
+        const starsEl = document.getElementById('stars');
+
+        // Stars
+        (function makeStars(){
+          let seed = 12345;
+          const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+          for (let i=0;i<150;i++){
+            const d = document.createElement('div');
+            d.className = 'star';
+            d.style.left = (rnd()*100).toFixed(2) + '%';
+            d.style.top = (rnd()*70).toFixed(2) + '%';
+            d.style.animationDelay = (rnd()*4).toFixed(2) + 's';
+            const size = 1 + Math.round(rnd()*1.5);
+            d.style.width = size + 'px';
+            d.style.height = size + 'px';
+            starsEl.appendChild(d);
+          }
+        })();
+
+        function makeSquares() {
+          const list = [];
+          for (let r=7; r>=0; r--) for (let f=0; f<8; f++) list.push(files[f]+ranks[r]);
+          return orientation === 'black' ? list.reverse() : list;
+        }
+
+        function render() {
+          boardEl.innerHTML = '';
+          const squares = makeSquares();
+          const state = game.board();
+          squares.forEach((sq, idx) => {
+            const el = document.createElement('div');
+            el.className = 'square ' + (((Math.floor(idx/8)+idx)%2===0) ? 'light':'dark');
+            el.setAttribute('data-square', sq);
+            el.setAttribute('role', 'button');
+            el.setAttribute('aria-label', sq);
+
+            const f = files.indexOf(sq[0]);
+            const r = ranks.indexOf(sq[1]);
+            const p = state[7-r]?.[f] || null;
+            if (p) {
+              const map = {k:'K',q:'Q',r:'R',b:'B',n:'N',p:'P'};
+              const code = (p.color === 'w' ? 'w':'b') + map[p.type].toUpperCase();
+              el.innerHTML = window.pieceSVG(code);
+            }
+            el.addEventListener('click', onSquareClick, {passive:true});
+            boardEl.appendChild(el);
+          });
+        }
+
+        let selected = null;
+        let legalMoves = [];
+
+        function clearHighlights() {
+          document.querySelectorAll('.square').forEach(s=>s.classList.remove('selected'));
+          document.querySelectorAll('.square .hint').forEach(h=>h.remove());
+        }
+
+        function showHints() {
+          legalMoves.forEach(m => {
+            const toEl = document.querySelector('.square[data-square="'+m.to+'"]');
+            if (toEl) {
+              const dot = document.createElement('div');
+              dot.className = 'hint';
+              toEl.appendChild(dot);
+            }
+          });
+        }
+
+        function onSquareClick(e) {
+          const sq = e.currentTarget.getAttribute('data-square');
+          const piece = game.get(sq);
+          const isOwn = piece && piece.color === game.turn();
+
+          if (selected) {
+            const legal = legalMoves.find(m => m.to === sq);
+            if (legal) {
+              game.move({ from: selected, to: sq, promotion: 'q' });
+              selected = null;
+              legalMoves = [];
+              clearHighlights();
+              render();
+              return;
+            }
+            if (isOwn) {
+              selected = sq;
+              legalMoves = game.moves({ square: sq, verbose: true });
+              clearHighlights();
+              document.querySelector('.square[data-square="'+sq+'"]')?.classList.add('selected');
+              showHints();
+            } else {
+              selected = null;
+              legalMoves = [];
+              clearHighlights();
+            }
+            return;
+          }
+
+          if (isOwn) {
+            selected = sq;
+            legalMoves = game.moves({ square: sq, verbose: true });
+            clearHighlights();
+            document.querySelector('.square[data-square="'+sq+'"]')?.classList.add('selected');
+            showHints();
+          }
+        }
+
+        btnNew.addEventListener('click', () => {
+          game.reset(); selected = null; legalMoves = []; clearHighlights(); render();
+        });
+        btnFlip.addEventListener('click', () => {
+          orientation = (orientation === 'white') ? 'black' : 'white';
+          selected = null; legalMoves = []; clearHighlights(); render();
+        });
+
+        render();
+      })();
+    </script>
+  </body>
+</html>
