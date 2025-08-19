@@ -1,1 +1,27 @@
-body{background:#0a0f26;color:#fff;font-family:sans-serif;}.board{display:grid;grid-template-columns:repeat(8,50px);grid-template-rows:repeat(8,50px);}
+:root { --square-size: calc(min(11vmin, 12vw, 7.6vh)); --board-radius: 16px; --grid-gap: 1px; }
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;font-family:ui-rounded,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(100% 140% at 50% 0%,#0b1230 0%,#0a0f26 40%,#08102a 70%,#060c21 100%);color:#f3f4f6;overflow:hidden}
+.app{position:relative;display:grid;grid-template-rows:auto 1fr auto;gap:12px;height:100%;align-items:center;justify-items:center;padding:clamp(10px,2vmin,18px)}
+.header{position:relative;z-index:2;display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(10,17,40,.45);border:1px solid rgba(255,255,255,.06);border-radius:14px;backdrop-filter:blur(6px);max-width:96vw}
+.brand{font-weight:700;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.controls{display:flex;gap:8px;z-index:2;flex-wrap:wrap}
+button{cursor:pointer;border:none;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-weight:600;letter-spacing:.3px}
+button:hover{background:rgba(255,255,255,.2)}
+.board-wrap{position:relative;z-index:1;padding:10px;border-radius:20px;background:radial-gradient(120% 140% at 50% 0%,rgba(90,120,100,.2),transparent 70%),linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.06);box-shadow:0 40px 80px rgba(0,0,0,.35),0 8px 18px rgba(0,0,0,.35) inset}
+.board{display:grid;grid-template-columns:repeat(8,var(--square-size));grid-template-rows:repeat(8,var(--square-size));gap:var(--grid-gap);background:linear-gradient(135deg,rgba(0,0,0,.25),rgba(255,255,255,.05));padding:var(--grid-gap);border-radius:var(--board-radius);position:relative;overflow:hidden;touch-action:manipulation}
+.board::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(0,0,0,.06) 1px,transparent 1px);background-size:6px 6px;mix-blend-mode:overlay;pointer-events:none}
+.square{width:var(--square-size);height:var(--square-size);display:grid;place-items:center;position:relative;border-radius:6px;overflow:hidden}
+.square.light{background:linear-gradient(180deg,#9b6847,#70462f)} .square.dark{background:linear-gradient(180deg,#3b2418,#2a1a12)}
+.square .hint{position:absolute;width:22%;height:22%;border-radius:999px;background:rgba(255,255,255,.75);box-shadow:0 0 0 6px rgba(255,255,255,.12) inset}
+.square.selected{outline:3px solid rgba(209,163,37,.85);z-index:2}
+.piece{width:78%;height:78%;user-select:none;touch-action:manipulation}
+.sky{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+.stars{position:absolute;width:100%;height:100%}.star{position:absolute;width:2px;height:2px;background:#fff;border-radius:999px;opacity:.8;animation:twinkle 3.5s infinite ease-in-out}
+@keyframes twinkle{0%,100%{opacity:.25}50%{opacity:1}}
+.cloud{position:absolute;top:10%;width:40vw;height:16vw;background:radial-gradient(60% 80% at 50% 50%,rgba(255,255,255,.12),rgba(255,255,255,.02) 60%,transparent 70%);filter:blur(10px);border-radius:50%;animation:drift 140s linear infinite}
+.cloud.c2{top:25%;width:50vw;height:18vw;animation-duration:180s;animation-delay:-20s}
+.cloud.c3{top:40%;width:45vw;height:15vw;animation-duration:160s;animation-delay:-60s}
+.cloud.c4{top:55%;width:55vw;height:20vw;animation-duration:200s;animation-delay:-100s}
+@keyframes drift{from{transform:translateX(55vw)}to{transform:translateX(-120vw)}}
+.grass{position:fixed;left:0;right:0;bottom:-6vh;height:16vh;background:radial-gradient(80% 80% at 50% 0%,rgba(26,77,46,.55),rgba(26,77,46,.1) 60%,transparent 85%),linear-gradient(180deg,rgba(26,77,46,.65),rgba(6,20,16,0.0));filter:blur(.6px);pointer-events:none}
+.footer{position:relative;z-index:2;opacity:.9;font-size:12px;text-align:center;padding:2px 8px}

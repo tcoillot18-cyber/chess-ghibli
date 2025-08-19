@@ -4,10 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
     <title>Chess Ghibli — Forêt Nuit</title>
+    <link rel="icon" href="assets/favicon.svg" />
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
   <body>
-    <div id="board" class="board"></div>
+    <div class="app">
+      <header class="header">
+        <span class="brand">♟️ Chess Ghibli — Forêt Nuit</span>
+        <div class="controls">
+          <button id="btnNew" aria-label="Rejouer">Rejouer</button>
+          <button id="btnFlip" aria-label="Inverser l'échiquier">Flip</button>
+        </div>
+      </header>
+      <main class="board-wrap">
+        <div id="board" class="board" aria-label="Échiquier"></div>
+      </main>
+      <div class="grass"></div>
+      <footer class="footer">
+        DA style Ghibli • tons terre & forêt • étoiles scintillantes • nuages droite→gauche
+      </footer>
+      <div class="sky" aria-hidden="true">
+        <div class="stars" id="stars"></div>
+        <div class="cloud c1"></div>
+        <div class="cloud c2"></div>
+        <div class="cloud c3"></div>
+        <div class="cloud c4"></div>
+      </div>
+    </div>
+
     <script src="assets/chess.min.js"></script>
     <script src="assets/pieces.js"></script>
     <script src="assets/app.js"></script>
