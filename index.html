@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>Chess Ghibli — Règles complètes</title>
+  <style>
+    :root{ --sq:min(11vmin,12vw,8vh); --line:rgba(255,255,255,.18); --shadow:rgba(0,0,0,.12); }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:ui-rounded,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(120% 160% at 50% 0%,#0b1230 0%,#0a0f26 40%,#08102a 70%,#060c21 100%);color:#f3f4f6;overflow:hidden;touch-action:manipulation}
+    .app{height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:12px;align-items:center;justify-items:center;padding:clamp(10px,2vmin,18px)}
+    header{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(10,17,40,.45);border:1px solid rgba(255,255,255,.06);border-radius:14px;backdrop-filter:blur(6px);flex-wrap:wrap}
+    button{cursor:pointer;border:none;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-weight:600}
+    button:hover{background:rgba(255,255,255,.2)}
+    .toggle{display:inline-flex;gap:6px;align-items:center;background:rgba(255,255,255,.08);padding:6px;border-radius:12px}
+    .toggle button{padding:8px 10px;border-radius:10px;background:transparent;opacity:.65}
+    .toggle button.active{background:rgba(255,255,255,.18);opacity:1}
+    .wrap{position:relative;display:grid;place-items:center;padding:12px;border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.06);box-shadow:0 40px 80px rgba(0,0,0,.35),0 8px 18px rgba(0,0,0,.35) inset}
+    .stage{position:relative;width: calc(var(--sq) * 8);height: calc(var(--sq) * 8);border-radius:18px;overflow:hidden;isolation:isolate;touch-action:none}
+    .bg{position:absolute;inset:0;background:url('assets/forest/forest-background-light.webp') center/cover no-repeat;z-index:0}
+    .grid{position:absolute;inset:0;z-index:1;pointer-events:none;background:
+      linear-gradient(to right,var(--line) 1px,transparent 1px) 0 0/ calc(100%/8) 100%,
+      linear-gradient(to bottom,var(--line) 1px,transparent 1px) 0 0/ 100% calc(100%/8),
+      linear-gradient(to right,var(--shadow) 1px,transparent 1px) 0 0/ calc(100%/8) 100%,
+      linear-gradient(to bottom,var(--shadow) 1px,transparent 1px) 0 0/ 100% calc(100%/8);
+      mix-blend-mode:soft-light}
+    .mask{position:absolute;inset:0;z-index:2;pointer-events:none;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr)}
+    .sq{opacity:.10}
+    .sq.light{background:radial-gradient(160% 160% at 50% 50%,rgba(255,255,255,.60) 0%,rgba(255,255,255,0) 70%)}
+    .sq.dark{ background:radial-gradient(160% 160% at 50% 50%,rgba(0,0,0,.55)   0%,rgba(0,0,0,0)   70%)}
+    .board{position:absolute;inset:0;z-index:3;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr)}
+    .cell{position:relative;display:grid;place-items:center}
+    .piece{width:88%;height:88%;object-fit:contain;filter:drop-shadow(0 2px 0 rgba(0,0,0,.25)) drop-shadow(0 8px 12px rgba(0,0,0,.18));touch-action:none}
+    .hint{position:absolute;width:22%;height:22%;border-radius:999px;background:rgba(255,255,255,.92);box-shadow:0 0 0 6px rgba(0,0,0,.14) inset}
+    .selected{outline:3px solid #d1a325;border-radius:10px}
+    .dragGhost{position:fixed;left:0;top:0;width:min(12vmin,80px);height:min(12vmin,80px);pointer-events:none;z-index:9999;transform:translate(-50%,-50%);filter:drop-shadow(0 8px 16px rgba(0,0,0,.35))}
+    .status{font-size:14px;opacity:.9;padding:6px 10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1);border-radius:10px}
+    footer{opacity:.85;font-size:12px}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span>♟️ Chess Ghibli — Règles complètes</span>
+    <button id="btnNew">Rejouer</button>
+    <button id="btnFlip">Flip</button>
+    <div class="toggle">
+      <button id="modeClick" class="active">Cliquer</button>
+      <button id="modeDrag">Drag & Drop</button>
+    </div>
+    <div class="status" id="status">Au trait : Blancs</div>
+  </header>
+
+  <div class="wrap">
+    <div class="stage" id="stage">
+      <div class="bg"></div>
+      <div class="grid"></div>
+      <div class="mask" id="mask"></div>
+      <div class="board" id="board"></div>
+    </div>
+  </div>
+
+  <footer>Roque, en passant, promotion, échec & mat. Ajoute <code>?v=cache</code> après mise à jour.</footer>
+</div>
+
+<script>
+/*** ===== Core chess engine with full rules ===== ***/
+const FILES=['a','b','c','d','e','f','g','h'];
+const RANKS=['1','2','3','4','5','6','7','8'];
+const W='w', B='b', EMPTY=null;
+const sq=(f,r)=>FILES[f]+RANKS[r];
+const pos=s=>({f:s.charCodeAt(0)-97, r:s.charCodeAt(1)-49});
+const inb=(f,r)=>f>=0&&f<8&&r>=0&&r<8;
+const clone=o=>JSON.parse(JSON.stringify(o));
+
+function startState(){
+  const e=EMPTY, P=t=>c=>({type:t,color:c});
+  const board=[
+    [P('r')(B),P('n')(B),P('b')(B),P('q')(B),P('k')(B),P('b')(B),P('n')(B),P('r')(B)],
+    [P('p')(B),P('p')(B),P('p')(B),P('p')(B),P('p')(B),P('p')(B),P('p')(B),P('p')(B)],
+    [e,e,e,e,e,e,e,e],
+    [e,e,e,e,e,e,e,e],
+    [e,e,e,e,e,e,e,e],
+    [e,e,e,e,e,e,e,e],
+    [P('p')(W),P('p')(W),P('p')(W),P('p')(W),P('p')(W),P('p')(W),P('p')(W),P('p')(W)],
+    [P('r')(W),P('n')(W),P('b')(W),P('q')(W),P('k')(W),P('b')(W),P('n')(W),P('r')(W)]
+  ];
+  return {board,turn:W,castling:{w:{K:true,Q:true},b:{K:true,Q:true}},ep:null,half:0,full:1};
+}
+
+function getAt(st,s){const {f,r}=pos(s);return st.board[7-r][f]}
+function setAt(st,s,v){const {f,r}=pos(s);st.board[7-r][f]=v}
+
+function kingSquare(st,color){
+  for(let r=0;r<8;r++)for(let f=0;f<8;f++){
+    const p=st.board[r][f]; if(p&&p.type==='k'&&p.color===color) return sq(f,7-r);
+  } return null;
+}
+
+function directionsFor(t){
+  const dirs=[];
+  if(t==='b'||t==='q') dirs.push([1,1],[1,-1],[-1,1],[-1,-1]);
+  if(t==='r'||t==='q') dirs.push([1,0],[-1,0],[0,1],[0,-1]);
+  return dirs;
+}
+
+function pseudoMovesFromSquare(st, from){
+  const p=getAt(st,from); if(!p) return [];
+  const res=[]; const {f,r}=pos(from);
+  const add=(to,spec)=>{const t=getAt(st,to); if(!t||t.color!==p.color) res.push({from,to,piece:p.type,spec}); };
+  if(p.type==='p'){
+    const dir=p.color===W?1:-1;
+    const startR=p.color===W?1:6;
+    // forward 1
+    let nf=f, nr=r+dir, to=sq(nf,nr);
+    if(inb(nf,nr) && !getAt(st,to)){ add(to);
+      // forward 2
+      if(r===startR){ nr=r+2*dir; to=sq(nf,nr); if(!getAt(st,to)) add(to,{double:true}); }
+    }
+    // captures
+    for(const df of[-1,1]){
+      nf=f+df; nr=r+dir;
+      if(inb(nf,nr)){ to=sq(nf,nr); const t=getAt(st,to); if(t&&t.color!==p.color) add(to); }
+    }
+    // en passant
+    if(st.ep){
+      const ep=pos(st.ep);
+      if(Math.abs(ep.f-f)===1 && ep.r===r+dir) add(st.ep,{enpassant:true});
+    }
+  } else if(p.type==='n'){
+    const J=[[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]];
+    for(const [df,dr] of J){ const nf=f+df,nr=r+dr; if(inb(nf,nr)) add(sq(nf,nr)); }
+  } else if(p.type==='k'){
+    for(let df=-1;df<=1;df++)for(let dr=-1;dr<=1;dr++){
+      if(df===0&&dr===0) continue;
+      const nf=f+df, nr=r+dr; if(inb(nf,nr)) add(sq(nf,nr));
+    }
+    // castling
+    const side=p.color, rank=(side===W)?0:7, opp=(side===W)?B:W;
+    const fromSafe=!attacksSquare(st,opp,from);
+    if(fromSafe){
+      // king side
+      if(st.castling[side].K){
+        const t1=sq(5,rank), t2=sq(6,rank);
+        if(!getAt(st,t1)&&!getAt(st,t2) && !attacksSquare(st,opp,t1) && !attacksSquare(st,opp,t2)){
+          add(t2,{castle:'K'});
+        }
+      }
+      // queen side
+      if(st.castling[side].Q){
+        const c1=sq(3,rank), c2=sq(2,rank), c3=sq(1,rank);
+        if(!getAt(st,c1)&&!getAt(st,c2)&&!getAt(st,c3) && !attacksSquare(st,opp,c1) && !attacksSquare(st,opp,c2)){
+          add(c2,{castle:'Q'});
+        }
+      }
+    }
+  } else {
+    for(const [df,dr] of directionsFor(p.type)){
+      let nf=f+df, nr=r+dr;
+      while(inb(nf,nr)){
+        const to=sq(nf,nr), t=getAt(st,to);
+        add(to); if(t) break; nf+=df; nr+=dr;
+      }
+    }
+  }
+  return res;
+}
+
+function pseudoMovesFromColor(st,color){
+  const m=[];
+  for(let r=0;r<8;r++)for(let f=0;f<8;f++){
+    const p=st.board[r][f]; if(p&&p.color===color){ m.push(...pseudoMovesFromSquare(st,sq(f,7-r))); }
+  }
+  return m;
+}
+
+function attacksSquare(st, byColor, target){
+  // Re-generate pseudo for attacker color and see if any goes to target
+  const moves=pseudoMovesFromColor(st,byColor);
+  for(const mv of moves){ if(mv.to===target){ return true; } }
+  return false;
+}
+
+function makeMove(st, mv){
+  const S=clone(st);
+  const p=getAt(S,mv.from);
+  // en passant capture
+  if(mv.spec && mv.spec.enpassant){
+    const {f,r}=pos(mv.to);
+    const dir=p.color===W?-1:1;
+    const cap=sq(f,r+dir);
+    setAt(S, cap, EMPTY);
+  }
+  // castling rook move
+  if(mv.spec && mv.spec.castle){
+    const rank=(p.color===W)?0:7;
+    if(mv.spec.castle==='K'){ // king -> g, rook h->f
+      const rf=sq(7,rank), rt=sq(5,rank);
+      const rook=getAt(S,rf); setAt(S,rf,EMPTY); setAt(S,rt,rook);
+    } else { // queen -> c, rook a->d
+      const rf=sq(0,rank), rt=sq(3,rank);
+      const rook=getAt(S,rf); setAt(S,rf,EMPTY); setAt(S,rt,rook);
+    }
+  }
+  // move piece
+  const captured = getAt(S, mv.to);
+  setAt(S, mv.from, EMPTY);
+  setAt(S, mv.to, {type:p.type, color:p.color});
+
+  // promotion (default queen if reaching last rank)
+  const toR=pos(mv.to).r;
+  if(p.type==='p' && (toR===7||toR===0)){
+    const promo = mv.promotion || 'q';
+    setAt(S,mv.to,{type:promo,color:p.color});
+  }
+
+  // update castling rights when king/rook moves or rook gets captured on original square
+  const rankW='1', rankB='8';
+  function touch(fromSq, piece){
+    const side=piece.color, rk=(side===W)?rankW:rankB;
+    if(piece.type==='k'){ S.castling[side].K=false; S.castling[side].Q=false; }
+    else if(piece.type==='r'){
+      if(fromSq==='h'+rk) S.castling[side].K=false;
+      if(fromSq==='a'+rk) S.castling[side].Q=false;
+    }
+  }
+  touch(mv.from, p);
+  if(captured){
+    // if rook captured on initial squares
+    const t=mv.to;
+    if(t==='h1') S.castling.w.K=false;
+    if(t==='a1') S.castling.w.Q=false;
+    if(t==='h8') S.castling.b.K=false;
+    if(t==='a8') S.castling.b.Q=false;
+  }
+
+  // set en passant target
+  S.ep=null;
+  if(p.type==='p' && mv.spec && mv.spec.double){
+    const f=pos(mv.from), t=pos(mv.to);
+    S.ep = sq(f.f, (f.r+t.r)/2);
+  }
+
+  // switch turn
+  S.turn = (S.turn===W)?B:W;
+  if(S.turn===W) S.full++;
+  return S;
+}
+
+function isInCheck(st,color){
+  const k=kingSquare(st,color);
+  const opp=(color===W)?B:W;
+  return attacksSquare(st,opp,k);
+}
+
+function legalMovesFromSquare(st, from){
+  const p=getAt(st,from); if(!p || p.color!==st.turn) return [];
+  const pseudo=pseudoMovesFromSquare(st,from);
+  const out=[];
+  for(const m of pseudo){
+    const tmp=clone(st);
+    // populate capture flag for castling-right updates
+    const cap=getAt(tmp,m.to);
+    m.captured = cap?cap.type:(m.spec&&m.spec.enpassant?'p':undefined);
+    const after=makeMove(tmp,m);
+    if(!isInCheck(after,p.color)) out.push(m);
+  }
+  return out;
+}
+
+function allLegalMoves(st){
+  const L=[];
+  for(let r=0;r<8;r++)for(let f=0;f<8;f++){
+    const p=st.board[r][f];
+    if(p && p.color===st.turn){
+      L.push(...legalMovesFromSquare(st, sq(f,7-r)));
+    }
+  }
+  return L;
+}
+
+function outcome(st){
+  const legal = allLegalMoves(st);
+  const inCheck = isInCheck(st, st.turn);
+  if(legal.length===0){
+    if(inCheck) return {type:'checkmate', winner:(st.turn===W?B:W)};
+    return {type:'stalemate'};
+  }
+  return null;
+}
+
+function Chess(){
+  let st = startState();
+  return {
+    reset(){ st=startState(); },
+    state(){ return clone(st); },
+    board(){ return st.board.map(r=>r.map(p=>p?{type:p.type,color:p.color}:null)); },
+    get(s){ return getAt(st,s); },
+    moves(opts){ if(!opts||!opts.square) return []; return legalMovesFromSquare(st,opts.square).map(m=>({from:m.from,to:m.to,spec:m.spec})); },
+    allMoves(){ return allLegalMoves(st); },
+    inCheck(c){ return isInCheck(st,c); },
+    move(m){
+      const legal=legalMovesFromSquare(st,m.from).find(x=>x.to===m.to);
+      if(!legal) return null;
+      // add promotion if needed
+      const p=getAt(st,m.from);
+      const toR=pos(m.to).r;
+      if(p.type==='p' && (toR===7||toR===0)){ legal.promotion = m.promotion || 'q'; }
+      st = makeMove(st,legal);
+      return {ok:true, outcome: outcome(st)};
+    }
+  }
+}
+/*** ===== UI ===== ***/
+const files=FILES, ranks=RANKS;
+let orientation='white';
+const game=new Chess();
+const boardEl=document.getElementById('board');
+const mask=document.getElementById('mask');
+const statusEl=document.getElementById('status');
+let interactionMode='click';
+
+const mapWhite={k:'king-cat.webp',q:'queen-frog.webp',b:'bishop-owl.webp',n:'knight-deer.webp',r:'rook-bear.webp',p:'pawn-mouse.webp'};
+const mapBlack={k:'king-cat.webp',q:'queen-frog.webp',b:'bishop-owl.webp',n:'knight-deer.webp',r:'rook-bear.webp',p:'pawn-mouse.webp'};
+const assetPath=(color,type)=>`assets/pieces/${color===W?'white':'black'}/${(color===W?mapWhite:mapBlack)[type]}`;
+
+function isLightSquare(S){ const f=S.charCodeAt(0)-97, r=S.charCodeAt(1)-49; return ((f+r)%2)===1; }
+function squaresOrdered(){
+  const arr=[]; for(let r=7;r>=0;r--) for(let f=0;f<8;f++) arr.push(files[f]+ranks[r]);
+  return (orientation==='black')?arr.reverse():arr;
+}
+function pieceAt(boardState, S){
+  const f=files.indexOf(S[0]), r=ranks.indexOf(S[1]);
+  return boardState[7-r]?.[f]||null;
+}
+function renderMask(){
+  mask.innerHTML='';
+  const order=squaresOrdered();
+  order.forEach(S=>{ const d=document.createElement('div'); d.className='sq '+(isLightSquare(S)?'light':'dark'); mask.appendChild(d); });
+}
+function updateStatus(){
+  const st=game.state();
+  let text=`Au trait : ${st.turn===W?'Blancs':'Noirs'}`;
+  const L=game.allMoves();
+  if(L.length===0){
+    if(game.inCheck(st.turn)){ text=`Échec et mat — ${st.turn===W?'Noirs':'Blancs'} gagnent`; }
+    else{ text='Pat — partie nulle'; }
+  } else if(game.inCheck(st.turn)){ text+=' — Échec !'; }
+  statusEl.textContent=text;
+}
+function render(){
+  boardEl.innerHTML='';
+  const order=squaresOrdered();
+  const state=game.board();
+  order.forEach(S=>{
+    const cell=document.createElement('div');
+    cell.className='cell'; cell.dataset.square=S;
+    const p=pieceAt(state,S);
+    if(p){
+      const img=new Image(); img.className='piece'; img.src=assetPath(p.color,p.type); img.alt=(p.color===W?'White ':'Black ')+p.type; img.dataset.square=S;
+      cell.appendChild(img);
+      if(interactionMode==='drag'){ img.style.cursor='grab'; img.addEventListener('pointerdown', ev=>onDragStart(ev,S), {passive:false}); }
+      else{ img.style.cursor='pointer'; }
+    }
+    if(interactionMode==='click'){ cell.addEventListener('click', onCellClick, {passive:true}); }
+    boardEl.appendChild(cell);
+  });
+  renderMask(); updateStatus();
+}
+
+// Click-to-move
+let selected=null, legalMoves=[];
+function clearHighlights(){ document.querySelectorAll('.cell').forEach(c=>c.classList.remove('selected')); document.querySelectorAll('.cell .hint').forEach(h=>h.remove()); }
+function showHints(list){ list.forEach(m=>{ const el=document.querySelector('.cell[data-square="'+m.to+'"]'); if(!el) return; const d=document.createElement('div'); d.className='hint'; el.appendChild(d); }); }
+function onCellClick(e){
+  const S=e.currentTarget.dataset.square, piece=game.get(S), own=piece&&piece.color===game.state().turn;
+  if(selected){
+    const mv=legalMoves.find(m=>m.to===S);
+    if(mv){ game.move({from:selected,to:S,promotion:'q'}); selected=null; legalMoves=[]; clearHighlights(); render(); return; }
+    if(own){ selected=S; legalMoves=game.moves({square:S}); clearHighlights(); document.querySelector('.cell[data-square="'+S+'"]').classList.add('selected'); showHints(legalMoves); }
+    else { selected=null; legalMoves=[]; clearHighlights(); }
+    return;
+  }
+  if(own){ selected=S; legalMoves=game.moves({square:S}); clearHighlights(); document.querySelector('.cell[data-square="'+S+'"]').classList.add('selected'); showHints(legalMoves); }
+}
+
+// Drag & drop
+let drag={active:false,from:null,ghost:null,moves:[]};
+function onDragStart(ev,S){
+  ev.preventDefault();
+  const piece=game.get(S); if(!piece || piece.color!==game.state().turn) return;
+  drag.active=true; drag.from=S; drag.moves=game.moves({square:S});
+  clearHighlights(); document.querySelector('.cell[data-square="'+S+'"]')?.classList.add('selected'); showHints(drag.moves);
+  const img=ev.currentTarget, g=img.cloneNode(true); g.classList.add('dragGhost'); document.body.appendChild(g); drag.ghost=g;
+  moveGhost(ev.clientX,ev.clientY);
+  window.addEventListener('pointermove', onDragMove, {passive:false});
+  window.addEventListener('pointerup', onDragEnd, {passive:false});
+}
+function moveGhost(x,y){ if(!drag.ghost) return; drag.ghost.style.left=x+'px'; drag.ghost.style.top=y+'px'; }
+function onDragMove(ev){ ev.preventDefault(); moveGhost(ev.clientX,ev.clientY); }
+function onDragEnd(ev){
+  ev.preventDefault();
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  if(!drag.active) return;
+  const el=document.elementFromPoint(ev.clientX, ev.clientY);
+  const cell = el && el.closest ? el.closest('.cell') : null;
+  const to = cell ? cell.dataset.square : null;
+  const mv = drag.moves.find(m=>m.to===to);
+  if(mv){ game.move({from:drag.from,to:to,promotion:'q'}); }
+  drag.active=false; drag.from=null; drag.moves=[];
+  if(drag.ghost && drag.ghost.parentNode) drag.ghost.parentNode.removeChild(drag.ghost);
+  drag.ghost=null; clearHighlights(); render();
+}
+
+// Controls
+document.getElementById('btnNew').addEventListener('click', ()=>{ game.reset(); selected=null; legalMoves=[]; clearHighlights(); render(); });
+document.getElementById('btnFlip').addEventListener('click', ()=>{ orientation=(orientation==='white')?'black':'white'; selected=null; legalMoves=[]; clearHighlights(); render(); });
+document.getElementById('modeClick').addEventListener('click', ()=>{ interactionMode='click'; document.getElementById('modeClick').classList.add('active'); document.getElementById('modeDrag').classList.remove('active'); render(); });
+document.getElementById('modeDrag').addEventListener('click', ()=>{ interactionMode='drag'; document.getElementById('modeDrag').classList.add('active'); document.getElementById('modeClick').classList.remove('active'); render(); });
+
+// Init
+render();
+</script>
+</body>
+</html>
